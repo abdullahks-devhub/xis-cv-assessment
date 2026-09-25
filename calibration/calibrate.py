@@ -7,9 +7,13 @@ images, and writes:
   calibration/output/coverage.png       where corners fell across the frame
   calibration/output/undistort_*.jpg    before/after comparison
 
+Images are resized by --scale before detection; the intrinsics are valid for
+that working resolution, and every later stage resizes identically
+(see calibration.undistort.to_working_size).
+
 Usage:
-    python -m calibration.calibrate --square-mm 22.4
-    python -m calibration.calibrate --square-mm 22.4 --max-error 1.0
+    python -m calibration.calibrate --square-mm 23.7 --scale 0.5
+    python -m calibration.calibrate --square-mm 23.7 --scale 0.5 --max-error 1.0
 """
 
 import argparse
@@ -23,6 +27,8 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 import yaml
+
+from calibration.undistort import to_working_size
 
 ROOT = Path(__file__).parent
 IMAGE_EXTS = {".jpg", ".jpeg", ".png"}
@@ -73,14 +79,16 @@ def save_coverage(img_pts, size, path: Path) -> None:
     plt.close(fig)
 
 
-def save_undistort_comparison(image_path: Path, K, dist, path: Path) -> None:
-    img = cv2.imread(str(image_path))
+def save_undistort_comparison(image_path: Path, scale: float, K, dist, path: Path) -> None:
+    img = to_working_size(cv2.imread(str(image_path)), scale)
     und = cv2.undistort(img, K, dist)
     side = np.hstack([img, und])
-    cv2.putText(side, "original", (40, 120), cv2.FONT_HERSHEY_SIMPLEX, 4, (0, 0, 255), 8)
-    cv2.putText(side, "undistorted", (img.shape[1] + 40, 120), cv2.FONT_HERSHEY_SIMPLEX, 4, (0, 200, 0), 8)
-    scale = 2400 / side.shape[1]
-    cv2.imwrite(str(path), cv2.resize(side, None, fx=scale, fy=scale))
+    font = img.shape[1] / 1000
+    cv2.putText(side, "original", (40, int(120 * font)), cv2.FONT_HERSHEY_SIMPLEX, font, (0, 0, 255), 3)
+    cv2.putText(side, "undistorted", (img.shape[1] + 40, int(120 * font)), cv2.FONT_HERSHEY_SIMPLEX, font,
+                (0, 200, 0), 3)
+    fit = 2400 / side.shape[1]
+    cv2.imwrite(str(path), cv2.resize(side, None, fx=fit, fy=fit))
 
 
 def main() -> None:
@@ -89,6 +97,8 @@ def main() -> None:
     parser.add_argument("--cols", type=int, default=9, help="inner corners along the board width")
     parser.add_argument("--rows", type=int, default=7, help="inner corners along the board height")
     parser.add_argument("--square-mm", type=float, required=True, help="measured square size in mm")
+    parser.add_argument("--scale", type=float, default=0.5,
+                        help="working-resolution scale applied to every image before calibration")
     parser.add_argument("--max-error", type=float, default=None,
                         help="drop images whose reprojection error exceeds this (px) and recalibrate")
     parser.add_argument("--out", type=Path, default=ROOT / "camera_params.yaml")
@@ -103,7 +113,7 @@ def main() -> None:
     (out_dir / "corners").mkdir(parents=True, exist_ok=True)
 
     board = object_points(args.cols, args.rows, args.square_mm)
-    obj_pts, img_pts, used, size = [], [], [], None
+    obj_pts, img_pts, used, capture_size = [], [], [], None
 
     for p in paths:
         img = cv2.imread(str(p))
@@ -111,11 +121,13 @@ def main() -> None:
             print(f"  skip {p.name}: unreadable")
             continue
         h, w = img.shape[:2]
-        if size is None:
-            size = (w, h)
-        elif (w, h) != size:
-            print(f"  skip {p.name}: size {w}x{h} differs from {size[0]}x{size[1]}")
+        if capture_size is None:
+            capture_size = (w, h)
+        elif (w, h) != capture_size:
+            print(f"  skip {p.name}: size {w}x{h} differs from {capture_size[0]}x{capture_size[1]}")
             continue
+        img = to_working_size(img, args.scale)
+        size = (img.shape[1], img.shape[0])
         corners = detect_corners(cv2.cvtColor(img, cv2.COLOR_BGR2GRAY), pattern)
         if corners is None:
             print(f"  skip {p.name}: board not found")
@@ -124,9 +136,9 @@ def main() -> None:
         img_pts.append(corners)
         used.append(p)
         vis = cv2.drawChessboardCorners(img.copy(), pattern, corners, True)
-        cv2.imwrite(str(out_dir / "corners" / p.name), cv2.resize(vis, None, fx=0.3, fy=0.3))
+        cv2.imwrite(str(out_dir / "corners" / p.name), cv2.resize(vis, None, fx=0.5, fy=0.5))
 
-    print(f"Board detected in {len(used)}/{len(paths)} images")
+    print(f"Board detected in {len(used)}/{len(paths)} images (working size {size[0]}x{size[1]})")
     if len(used) < 10:
         raise SystemExit("Need at least 10 usable images (20+ recommended).")
 
@@ -155,6 +167,8 @@ def main() -> None:
 
     params = {
         "date": date.today().isoformat(),
+        "capture_size": list(capture_size),
+        "working_scale": args.scale,
         "image_size": list(size),
         "pattern_inner_corners": list(pattern),
         "square_mm": args.square_mm,
@@ -169,7 +183,7 @@ def main() -> None:
 
     save_coverage(img_pts, size, out_dir / "coverage.png")
     worst = used[int(np.argmax(errors))]
-    save_undistort_comparison(worst, K, dist, out_dir / f"undistort_{worst.stem}.jpg")
+    save_undistort_comparison(worst, args.scale, K, dist, out_dir / f"undistort_{worst.stem}.jpg")
     print(f"\nSaved {args.out} and visualisations in {out_dir}")
 
 
