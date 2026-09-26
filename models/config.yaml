@@ -1,0 +1,38 @@
+# Mask R-CNN training configuration (torchvision)
+data:
+  images: dataset/undistorted
+  train: dataset/splits/train.json
+  val: dataset/splits/val.json
+  test: dataset/splits/test.json
+  classes: [book, card]          # index 0 is background, added automatically
+
+model:
+  arch: maskrcnn_resnet50_fpn_v2
+  pretrained: COCO_V1            # ImageNet backbone + COCO detection/segmentation weights
+  min_size: 1024                 # shorter side after internal resize (2080x1560 -> 1365x1024)
+  max_size: 1400
+
+train:
+  epochs: 30
+  batch_size: 2
+  optimizer: sgd
+  lr: 0.005
+  momentum: 0.9
+  weight_decay: 0.0001
+  warmup_iters: 50
+  lr_milestones: [20, 26]        # epochs at which lr is multiplied by 0.1
+  lr_gamma: 0.1
+  seed: 42
+  num_workers: 2
+
+augmentation:
+  hflip: 0.5
+  vflip: 0.5
+  rot90: 0.5                     # random 90-degree rotation
+  color_jitter: {brightness: 0.3, contrast: 0.3, saturation: 0.3, hue: 0.03}
+
+eval:
+  score_threshold: 0.5           # for precision / recall / F1 and visualisations
+  iou_threshold: 0.5
+
+output_dir: models/output
