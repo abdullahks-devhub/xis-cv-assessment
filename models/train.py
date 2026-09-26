@@ -40,7 +40,7 @@ def seed_everything(seed: int) -> None:
     torch.cuda.manual_seed_all(seed)
 
 
-def run_epoch(model, loader, device, optimizer=None, scheduler=None) -> dict:
+def run_epoch(model, loader, device, optimizer=None, scheduler=None, log_every: int = 0) -> dict:
     """One pass over loader. With an optimizer: trains. Without: computes val loss (no grad)."""
     model.train()  # torchvision detection models only return losses in train mode; BN is frozen
     totals, n = {}, 0
@@ -62,6 +62,8 @@ def run_epoch(model, loader, device, optimizer=None, scheduler=None) -> dict:
             totals[k] = totals.get(k, 0.0) + v.item()
         totals["loss"] = totals.get("loss", 0.0) + loss.item()
         n += 1
+        if log_every and n % log_every == 0:
+            print(f"    iter {n}/{len(loader)} loss {loss.item():.3f}", flush=True)
     return {k: v / max(n, 1) for k, v in totals.items()}
 
 
@@ -131,14 +133,14 @@ def main() -> None:
 
     scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_factor)
 
-    print(f"Device: {device} | train {len(train_ds)} | val {len(val_ds)} | epochs {tc['epochs']}")
+    print(f"Device: {device} | train {len(train_ds)} | val {len(val_ds)} | epochs {tc['epochs']}", flush=True)
     history, best = [], -1.0
     for epoch in range(1, tc["epochs"] + 1):
         t0 = time.time()
-        train_stats = run_epoch(model, train_loader, device, optimizer, scheduler)
+        train_stats = run_epoch(model, train_loader, device, optimizer, scheduler,
+                                log_every=10 if epoch == 1 else 0)
         val_stats = run_epoch(model, val_loader, device)
-        metrics = coco_map(d["val"], predict(model, val_ds, device)) if not args.limit else \
-            {"bbox": {"mAP50_95": 0, "mAP50": 0}, "segm": {"mAP50_95": 0, "mAP50": 0}}
+        metrics = coco_map(d["val"], predict(model, val_ds, device))
 
         row = {"epoch": epoch, "lr": optimizer.param_groups[0]["lr"],
                "train_loss": train_stats["loss"], "val_loss": val_stats["loss"]}
@@ -158,7 +160,7 @@ def main() -> None:
 
         print(f"epoch {epoch:2d} | train {row['train_loss']:.3f} | val {row['val_loss']:.3f} | "
               f"mask mAP50 {row['val_segm_mAP50']:.3f} mAP50:95 {score:.3f} | "
-              f"box mAP50:95 {row['val_bbox_mAP50_95']:.3f} | {time.time() - t0:.0f}s")
+              f"box mAP50:95 {row['val_bbox_mAP50_95']:.3f} | {time.time() - t0:.0f}s", flush=True)
 
         with open(out_dir / "history.csv", "w", newline="") as f:
             writer = csv.DictWriter(f, fieldnames=list(history[0]))

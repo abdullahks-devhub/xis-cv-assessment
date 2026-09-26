@@ -11,33 +11,46 @@ from pycocotools.cocoeval import COCOeval
 
 
 @torch.no_grad()
-def predict(model, dataset, device: str) -> list[dict]:
-    """Run the model over a dataset. Returns per-image dicts with numpy boxes/scores/labels/binary masks."""
+def predict(model, dataset, device: str, min_score: float = 0.05) -> list[dict]:
+    """Run the model over a dataset.
+
+    Masks are stored run-length encoded: full-resolution float masks for every
+    candidate would need ~1 GB per image.
+    """
     model.eval()
     results = []
     for i in range(len(dataset)):
         image, target = dataset[i]
         out = model([image.to(device)])[0]
+        keep = out["scores"] >= min_score
+        binary = (out["masks"][keep, 0] > 0.5).cpu().numpy()
         results.append({
             "image_id": target["image_id"],
-            "boxes": out["boxes"].cpu().numpy(),
-            "scores": out["scores"].cpu().numpy(),
-            "labels": out["labels"].cpu().numpy(),
-            "masks": (out["masks"][:, 0] > 0.5).cpu().numpy(),
-            "mask_probs": out["masks"][:, 0].cpu().numpy(),
+            "boxes": out["boxes"][keep].cpu().numpy(),
+            "scores": out["scores"][keep].cpu().numpy(),
+            "labels": out["labels"][keep].cpu().numpy(),
+            "rles": [encode_mask(m) for m in binary],
         })
     return results
+
+
+def encode_mask(mask: np.ndarray) -> dict:
+    rle = mask_utils.encode(np.asfortranarray(mask.astype(np.uint8)))
+    rle["counts"] = rle["counts"].decode()
+    return rle
+
+
+def decode_mask(rle: dict) -> np.ndarray:
+    return mask_utils.decode({**rle, "counts": rle["counts"].encode()}).astype(bool)
 
 
 def _coco_results(preds: list[dict]) -> tuple[list, list]:
     bbox, segm = [], []
     for p in preds:
-        for box, score, label, m in zip(p["boxes"], p["scores"], p["labels"], p["masks"]):
+        for box, score, label, rle in zip(p["boxes"], p["scores"], p["labels"], p["rles"]):
             x0, y0, x1, y1 = box.tolist()
             common = {"image_id": p["image_id"], "category_id": int(label), "score": float(score)}
             bbox.append({**common, "bbox": [x0, y0, x1 - x0, y1 - y0]})
-            rle = mask_utils.encode(np.asfortranarray(m.astype(np.uint8)))
-            rle["counts"] = rle["counts"].decode()
             segm.append({**common, "segmentation": rle})
     return bbox, segm
 
@@ -86,11 +99,11 @@ def matching_metrics(dataset, preds: list[dict], class_names: list[str],
         _, target = dataset[i]
         gt_masks = target["masks"].numpy().astype(bool)
         gt_labels = target["labels"].numpy()
-        keep = p["scores"] >= score_thr
+        keep = np.flatnonzero(p["scores"] >= score_thr)
+        keep = keep[np.argsort(-p["scores"][keep])]
         for c, name in enumerate(class_names, start=1):
             gts = [m for m, l in zip(gt_masks, gt_labels) if l == c]
-            order = np.argsort(-p["scores"][keep])
-            dts = [p["masks"][keep][j] for j in order if p["labels"][keep][j] == c]
+            dts = [decode_mask(p["rles"][j]) for j in keep if p["labels"][j] == c]
             used = set()
             for d in dts:
                 best, best_j = 0.0, -1

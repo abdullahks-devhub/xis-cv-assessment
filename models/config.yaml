@@ -11,6 +11,7 @@ model:
   pretrained: COCO_V1            # ImageNet backbone + COCO detection/segmentation weights
   min_size: 1024                 # shorter side after internal resize (2080x1560 -> 1365x1024)
   max_size: 1400
+  detections_per_img: 20         # images contain at most 3 objects
 
 train:
   epochs: 30

@@ -90,7 +90,8 @@ def build_model(cfg: dict, pretrained: bool = True) -> torch.nn.Module:
     num_classes = len(cfg["data"]["classes"]) + 1
     weights = MaskRCNN_ResNet50_FPN_V2_Weights.COCO_V1 if pretrained else None
     model = torchvision.models.detection.maskrcnn_resnet50_fpn_v2(
-        weights=weights, min_size=cfg["model"]["min_size"], max_size=cfg["model"]["max_size"]
+        weights=weights, min_size=cfg["model"]["min_size"], max_size=cfg["model"]["max_size"],
+        box_detections_per_img=cfg["model"].get("detections_per_img", 20),
     )
     in_features = model.roi_heads.box_predictor.cls_score.in_features
     model.roi_heads.box_predictor = FastRCNNPredictor(in_features, num_classes)

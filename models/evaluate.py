@@ -17,7 +17,7 @@ import cv2
 import numpy as np
 
 from models.common import CocoSegmentation, load_config, load_trained, pick_device
-from models.metrics import coco_map, matching_metrics, predict
+from models.metrics import coco_map, decode_mask, matching_metrics, predict
 
 COLORS = {1: (255, 0, 255), 2: (0, 200, 255)}  # BGR: book magenta, card orange
 
@@ -25,9 +25,10 @@ COLORS = {1: (255, 0, 255), 2: (0, 200, 255)}  # BGR: book magenta, card orange
 def draw_predictions(image_rgb: np.ndarray, pred: dict, class_names: list[str], score_thr: float) -> np.ndarray:
     img = cv2.cvtColor(image_rgb, cv2.COLOR_RGB2BGR)
     overlay = img.copy()
-    for box, score, label, mask in zip(pred["boxes"], pred["scores"], pred["labels"], pred["masks"]):
+    for box, score, label, rle in zip(pred["boxes"], pred["scores"], pred["labels"], pred["rles"]):
         if score < score_thr:
             continue
+        mask = decode_mask(rle)
         color = COLORS.get(int(label), (0, 255, 0))
         overlay[mask] = color
         contours, _ = cv2.findContours(mask.astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
