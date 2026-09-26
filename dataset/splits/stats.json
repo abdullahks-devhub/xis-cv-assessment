@@ -1,0 +1,65 @@
+{
+  "seed": 42,
+  "excluded": {
+    "img_009.jpg": "a second, partially visible book (register) at the left edge is unlabelled"
+  },
+  "splits": {
+    "train": {
+      "images": 76,
+      "instances": {
+        "card": 75,
+        "book": 77
+      },
+      "images_per_book": {
+        "1": 9,
+        "2": 9,
+        "3": 9,
+        "4": 8,
+        "5": 7,
+        "6": 8,
+        "7": 9,
+        "8": 5,
+        "9": 7,
+        "10": 5
+      }
+    },
+    "val": {
+      "images": 22,
+      "instances": {
+        "book": 22,
+        "card": 22
+      },
+      "images_per_book": {
+        "1": 2,
+        "2": 3,
+        "3": 2,
+        "4": 2,
+        "5": 2,
+        "6": 2,
+        "7": 3,
+        "8": 2,
+        "9": 2,
+        "10": 2
+      }
+    },
+    "test": {
+      "images": 10,
+      "instances": {
+        "book": 10,
+        "card": 10
+      },
+      "images_per_book": {
+        "1": 1,
+        "2": 1,
+        "3": 1,
+        "4": 1,
+        "5": 1,
+        "6": 1,
+        "7": 1,
+        "8": 1,
+        "9": 1,
+        "10": 1
+      }
+    }
+  }
+}
