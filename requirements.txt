@@ -2,3 +2,7 @@ numpy>=1.26
 opencv-contrib-python>=4.8
 matplotlib>=3.8
 pyyaml>=6.0
+pillow>=10.0
+torch>=2.2
+torchvision>=0.17
+pycocotools>=2.0.7
