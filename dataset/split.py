@@ -24,6 +24,12 @@ EXCLUDE = {
     "img_009.jpg": "a second, partially visible book (register) at the left edge is unlabelled",
 }
 
+# Label corrections applied on top of the CVAT export: {file: {annotation id: correct class}}.
+# Found by an area sanity check (a "card" covering 45% of the frame); see docs/DATASET_CARD.md.
+LABEL_FIXES = {
+    "img_002.jpg": {3: "book", 4: "card"},  # book and card labels were swapped
+}
+
 # Raw capture ranges per physical book (ids match measurement/ground_truth.csv).
 BOOK_RANGES = [
     (1, 9, 10),     # Computer education
@@ -66,6 +72,14 @@ def main() -> None:
         c["name"] = c["name"].lower()
         c["supercategory"] = ""
 
+    cat_ids = {c["name"]: c["id"] for c in coco["categories"]}
+    file_of = {i["id"]: i["file_name"] for i in coco["images"]}
+    for a in coco["annotations"]:
+        fix = LABEL_FIXES.get(file_of[a["image_id"]], {}).get(a["id"])
+        if fix:
+            a["category_id"] = cat_ids[fix]
+            print(f"fixed label of annotation {a['id']} in {file_of[a['image_id']]} -> {fix}")
+
     excluded_ids = {i["id"] for i in coco["images"] if i["file_name"] in EXCLUDE}
     coco["images"] = [i for i in coco["images"] if i["id"] not in excluded_ids]
     coco["annotations"] = [a for a in coco["annotations"] if a["image_id"] not in excluded_ids]
@@ -90,7 +104,7 @@ def main() -> None:
 
     args.out.mkdir(parents=True, exist_ok=True)
     cat_names = {c["id"]: c["name"] for c in coco["categories"]}
-    stats = {"seed": args.seed, "excluded": EXCLUDE, "splits": {}}
+    stats = {"seed": args.seed, "excluded": EXCLUDE, "label_fixes": LABEL_FIXES, "splits": {}}
     for name in SPLITS:
         images = [i for i in coco["images"] if assignment[i["id"]] == name]
         ids = {i["id"] for i in images}
