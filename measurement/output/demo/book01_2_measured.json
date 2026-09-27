@@ -1,0 +1,11 @@
+{
+  "image": "book01_2.jpg",
+  "width_mm": 176.8,
+  "height_mm": 238.7,
+  "confidence": 0.996,
+  "card_confidence": 0.997,
+  "px_per_mm": 5.5044,
+  "camera_distance_mm": 268.1,
+  "notes": [],
+  "overlay": "measurement/output/demo/book01_2_measured.jpg"
+}
