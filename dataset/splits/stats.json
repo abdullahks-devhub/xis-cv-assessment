@@ -3,12 +3,18 @@
   "excluded": {
     "img_009.jpg": "a second, partially visible book (register) at the left edge is unlabelled"
   },
+  "label_fixes": {
+    "img_002.jpg": {
+      "3": "book",
+      "4": "card"
+    }
+  },
   "splits": {
     "train": {
       "images": 76,
       "instances": {
-        "card": 75,
-        "book": 77
+        "book": 77,
+        "card": 75
       },
       "images_per_book": {
         "1": 9,
